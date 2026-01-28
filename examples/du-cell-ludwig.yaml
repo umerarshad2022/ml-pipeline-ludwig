@@ -1,0 +1,171 @@
+name: DU Cell Anomaly Detection with Ludwig
+description: |
+  Deep learning-based anomaly detection for DU cell metrics using Ludwig AI.
+  This pipeline uses neural networks instead of traditional Isolation Forest.
+
+metadata:
+  author: AIML Team
+  version: 1.0.0
+  created: 2026-01-28
+
+data:
+  source:
+    type: csv
+    path: data/du_cell_report.csv
+  
+  preprocessing:
+    # Ludwig handles most preprocessing automatically
+    drop_columns:
+      - Cell_ID
+      - gNB_ID  
+      - Timestamp
+
+# Ludwig Configuration
+ludwig:
+  # Input features (what we train on)
+  input_features:
+    - name: Active_UEs_DL
+      type: numerical
+      preprocessing:
+        normalization: zscore  # Normalize to mean=0, std=1
+    
+    # Add more features when available
+    # - name: PRB_Used_DL
+    #   type: numerical
+    #   preprocessing:
+    #     normalization: zscore
+    
+    # - name: Throughput_DL
+    #   type: numerical
+    #     preprocessing:
+    #       normalization: zscore
+
+  # Output feature (what we predict)
+  output_features:
+    - name: is_anomaly
+      type: binary  # 0 = normal, 1 = anomaly
+      decoder:
+        type: classifier
+        num_fc_layers: 3  # 3 fully-connected layers
+        fc_layers:
+          - output_size: 64
+            activation: relu
+            dropout: 0.2
+          - output_size: 32
+            activation: relu
+            dropout: 0.1
+          - output_size: 16
+            activation: relu
+      
+      loss:
+        type: cross_entropy
+        class_weights: [1, 10]  # Higher weight for anomalies (rare class)
+
+  # Training configuration
+  trainer:
+    epochs: 100
+    batch_size: 32
+    learning_rate: 0.001
+    optimizer:
+      type: adam
+    
+    decay: true
+    decay_steps: 10000
+    decay_rate: 0.96
+    
+    early_stop: 10  # Stop if no improvement for 10 epochs
+    
+    validation_metric: accuracy
+    validation_field: is_anomaly
+    
+    # Learning rate schedule
+    learning_rate_scheduler:
+      type: reduce_on_plateau
+      factor: 0.5
+      patience: 5
+
+  # Model defaults (applies to all features)
+  defaults:
+    numerical:
+      preprocessing:
+        missing_value_strategy: fill_with_mean
+        normalization: zscore
+    
+    binary:
+      preprocessing:
+        fallback_label: 0  # Assume normal if missing
+
+# Pipeline steps
+steps:
+  - name: load-data
+    type: data_loader
+    config:
+      source: ${data.source}
+  
+  - name: auto-label-anomalies
+    type: unsupervised_labeling
+    config:
+      # Since we don't have labels, use Isolation Forest to create them
+      method: isolation_forest
+      contamination: 0.10
+      feature: Active_UEs_DL
+      output_column: is_anomaly
+  
+  - name: train-ludwig
+    type: ludwig_train
+    config:
+      ludwig: ${ludwig}
+      output_directory: artifacts/ludwig_model
+      experiment_name: du-cell-anomaly
+    depends_on:
+      - auto-label-anomalies
+  
+  - name: evaluate
+    type: ludwig_evaluate
+    config:
+      model_path: artifacts/ludwig_model
+      test_split: 0.2
+    depends_on:
+      - train-ludwig
+  
+  - name: visualize
+    type: ludwig_visualize
+    config:
+      model_path: artifacts/ludwig_model
+      visualizations:
+        - learning_curves
+        - confusion_matrix
+        - roc_curve
+        - feature_importance
+      output_directory: artifacts/visualizations
+    depends_on:
+      - evaluate
+
+# Experiment tracking
+experiment:
+  tracking_uri: http://localhost:5000  # MLflow
+  experiment_name: du-cell-ludwig
+  tags:
+    model_type: deep_learning
+    framework: ludwig
+    task: anomaly_detection
+
+# Artifacts
+artifacts:
+  storage:
+    type: minio
+    endpoint: http://localhost:9000
+    bucket: ml-artifacts
+  
+  save:
+    - model
+    - training_stats
+    - visualizations
+    - predictions
+
+# Deployment (optional)
+deployment:
+  model_server:
+    type: ludwig_serve
+    port: 8080
+    workers: 4
