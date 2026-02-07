@@ -13,7 +13,7 @@ matplotlib==3.7.2
 seaborn==0.12.2
 
 # YAML Processing
-pyyaml==6.0.1
+pyyaml==6.0
 
 # Experiment Tracking
 mlflow==2.10.2

@@ -1,0 +1,66 @@
+name: DU Cell Anomaly Detection with Logistic Regression
+description: Fast baseline Logistic Regression for anomaly detection in DU cell metrics
+metadata:
+ author: AIML Team
+ version: 1.0.0
+ created: 2026-02-07
+ model_type: logistic_regression
+
+data:
+ preprocessing:
+   drop_columns:
+     - Cell_ID
+     - gNB_ID
+     - Timestamp
+
+sklearn_model:
+  type: logistic_regression
+  params:
+    C: 1.0                     # Inverse of regularization strength
+    penalty: l2                # Regularization penalty (l1, l2, elasticnet)
+    solver: lbfgs              # Optimization algorithm
+    max_iter: 1000             # Maximum iterations
+    random_state: 42
+    n_jobs: -1                 # Use all CPU cores
+    class_weight: balanced     # Handle class imbalance
+  input_features:
+    - active_users
+  output_feature: is_anomaly
+
+steps:
+ - name: load-data
+   type: data_loader
+   config:
+     source:
+       type: csv
+       path: data/sample_data.csv
+
+ - name: auto-label-anomalies
+   type: unsupervised_labeling
+   config:
+     method: isolation_forest
+     contamination: 0.10
+     feature: active_users
+     output_column: is_anomaly
+
+ - name: train-sklearn
+   type: sklearn_train
+   config:
+     model_type: logistic_regression
+     output_directory: artifacts/logistic_regression_model
+     experiment_name: du-cell-lr-anomaly
+
+ - name: evaluate
+   type: sklearn_evaluate
+   config:
+     output_directory: artifacts/evaluation
+
+ - name: visualize
+   type: sklearn_visualize
+   config:
+     visualizations:
+       - confusion_matrix
+       - roc_curve
+       - precision_recall_curve
+       - coefficients
+     output_directory: artifacts/visualizations

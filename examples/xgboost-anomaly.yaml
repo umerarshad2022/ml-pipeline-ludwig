@@ -1,0 +1,73 @@
+name: DU Cell Anomaly Detection with XGBoost
+description: High-performance XGBoost classifier for anomaly detection in DU cell metrics
+metadata:
+ author: AIML Team
+ version: 1.0.0
+ created: 2026-02-07
+ model_type: xgboost
+
+data:
+ preprocessing:
+   drop_columns:
+     - Cell_ID
+     - gNB_ID
+     - Timestamp
+
+sklearn_model:
+  type: xgboost
+  params:
+    n_estimators: 100          # Number of boosting rounds
+    max_depth: 6               # Maximum tree depth
+    learning_rate: 0.1         # Step size shrinkage
+    subsample: 0.8             # Subsample ratio of training instances
+    colsample_bytree: 0.8      # Subsample ratio of columns
+    min_child_weight: 1        # Minimum sum of instance weight in a child
+    gamma: 0                   # Minimum loss reduction for split
+    reg_alpha: 0               # L1 regularization
+    reg_lambda: 1              # L2 regularization
+    random_state: 42
+    n_jobs: -1                 # Use all CPU cores
+    scale_pos_weight: 10       # Handle class imbalance (ratio of negative to positive)
+    tree_method: hist          # Fast histogram-based algorithm
+  input_features:
+    - active_users
+  output_feature: is_anomaly
+
+steps:
+ - name: load-data
+   type: data_loader
+   config:
+     source:
+       type: csv
+       path: data/sample_data.csv
+
+ - name: auto-label-anomalies
+   type: unsupervised_labeling
+   config:
+     method: isolation_forest
+     contamination: 0.10
+     feature: active_users
+     output_column: is_anomaly
+
+ - name: train-sklearn
+   type: sklearn_train
+   config:
+     model_type: xgboost
+     output_directory: artifacts/xgboost_model
+     experiment_name: du-cell-xgb-anomaly
+
+ - name: evaluate
+   type: sklearn_evaluate
+   config:
+     output_directory: artifacts/evaluation
+
+ - name: visualize
+   type: sklearn_visualize
+   config:
+     visualizations:
+       - feature_importance
+       - confusion_matrix
+       - roc_curve
+       - precision_recall_curve
+       - learning_curve
+     output_directory: artifacts/visualizations
