@@ -8,6 +8,15 @@ ludwig[serve]==0.8.5
 pandas==2.0.3
 numpy==1.24.3
 
+# Machine Learning
+scikit-learn==1.3.2
+xgboost==2.0.3
+joblib==1.3.2
+
+# Explainability (XAI)
+shap==0.43.0
+lime==0.2.0.1
+
 # Visualization
 matplotlib==3.7.2
 seaborn==0.12.2
