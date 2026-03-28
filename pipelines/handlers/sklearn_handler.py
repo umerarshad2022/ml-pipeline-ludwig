@@ -4,7 +4,7 @@ Handlers for scikit-learn and XGBoost models within the YAML pipeline engine.
 
 Supports:
 - SklearnTrainHandler: Train Random Forest, XGBoost, Logistic Regression
-- SklearnEvaluateHandler: Compute metrics and produce evaluation artefacts
+- SklearnEvaluateHandler: Compute metrics and produce evaluation artifacts
 - SklearnVisualizeHandler: Generate plots (confusion matrix, ROC, PR, feature importance)
 - SklearnXAIHandler: SHAP and LIME explanations
 """
@@ -317,9 +317,9 @@ class SklearnEvaluateHandler:
 
 class SklearnVisualizeHandler:
     """
-    Generate evaluation visualisations for a trained sklearn model.
+    Generate evaluation visualizations for a trained sklearn model.
 
-    Supported visualisations (configured via ``visualizations`` list in YAML):
+    Supported visualizations (configured via ``visualizations`` list in YAML):
         - confusion_matrix
         - roc_curve
         - precision_recall_curve
@@ -341,7 +341,7 @@ class SklearnVisualizeHandler:
         import matplotlib.pyplot as plt
         import seaborn as sns
 
-        logger.info("🎨 Generating sklearn visualisations…")
+        logger.info("🎨 Generating sklearn visualizations…")
 
         model_info = self.context.get("sklearn_model")
         eval_info = self.context.get("sklearn_evaluate")
@@ -419,12 +419,12 @@ class SklearnVisualizeHandler:
                         logger.warning("learning_curve: no training data in context.")
 
                 else:
-                    logger.warning(f"Skipping visualisation '{vis}' (not applicable).")
+                    logger.warning(f"Skipping visualization '{vis}' (not applicable).")
 
             except Exception as exc:
-                logger.warning(f"Visualisation '{vis}' failed: {exc}")
+                logger.warning(f"Visualization '{vis}' failed: {exc}")
 
-        logger.info(f"✅ {len(created)} visualisation(s) saved to {output_directory}")
+        logger.info(f"✅ {len(created)} visualization(s) saved to {output_directory}")
         result = {"visualizations": created, "output_directory": output_directory}
         self.context["sklearn_visualize"] = result
         return result
@@ -639,7 +639,7 @@ class SklearnXAIHandler:
             )
             created.extend(lime_paths)
 
-        logger.info(f"✅ {len(created)} XAI artefact(s) saved to {output_directory}")
+        logger.info(f"✅ {len(created)} XAI artifact(s) saved to {output_directory}")
         result = {"xai_artifacts": created, "output_directory": output_directory}
         self.context["sklearn_xai"] = result
         return result

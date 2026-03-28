@@ -236,7 +236,7 @@ class TestSklearnXAIHandler:
             {"output_directory": str(tmp_path / "eval")}, context
         ).execute()
 
-    def test_shap_creates_artefacts(self, simple_context, tmp_path):
+    def test_shap_creates_artifacts(self, simple_context, tmp_path):
         import os
 
         try:
