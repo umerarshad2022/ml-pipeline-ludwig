@@ -65,3 +65,12 @@ steps:
        - roc_curve
        - precision_recall_curve
      output_directory: artifacts/visualizations
+
+ - name: xai
+   type: sklearn_xai
+   config:
+     methods:
+       - shap
+       - lime
+     n_lime: 3
+     output_directory: artifacts/random_forest_model/xai
