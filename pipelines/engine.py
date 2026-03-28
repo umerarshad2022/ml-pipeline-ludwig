@@ -1,12 +1,12 @@
 """
 Ludwig Pipeline Engine
-YAML-based ML pipeline orchestration with Ludwig AI
+YAML-based ML pipeline orchestration with Ludwig AI and scikit-learn models.
 """
 import yaml
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import pandas as pd
 # Setup logging
 logging.basicConfig(
@@ -21,19 +21,22 @@ class PipelineConfig:
    description: str
    metadata: Dict[str, Any]
    data: Dict[str, Any]
-   ludwig: Dict[str, Any]
    steps: list
+   ludwig: Dict[str, Any] = field(default_factory=dict)
+   sklearn_model: Dict[str, Any] = field(default_factory=dict)
    experiment: Optional[Dict[str, Any]] = None
    artifacts: Optional[Dict[str, Any]] = None
    deployment: Optional[Dict[str, Any]] = None
 class LudwigPipelineEngine:
    """
-   Main pipeline engine for Ludwig-based ML workflows.
+   Main pipeline engine for Ludwig-based and sklearn ML workflows.
   
    Features:
    - YAML-based configuration
    - Ludwig AI integration
-   - Experiment tracking
+   - scikit-learn / XGBoost / Logistic Regression integration
+   - SHAP and LIME XAI integration
+   - MLflow experiment tracking
    - Artifact management
    """
   
@@ -66,6 +69,7 @@ class LudwigPipelineEngine:
            metadata=config_dict.get('metadata', {}),
            data=config_dict.get('data', {}),
            ludwig=config_dict.get('ludwig', {}),
+           sklearn_model=config_dict.get('sklearn_model', {}),
            steps=config_dict.get('steps', []),
            experiment=config_dict.get('experiment'),
            artifacts=config_dict.get('artifacts'),
@@ -81,15 +85,26 @@ class LudwigPipelineEngine:
        """Validate pipeline configuration"""
        logger.info("Validating configuration...")
       
-       # Required fields
-       if not self.config.ludwig:
-           raise ValueError("Ludwig configuration is required")
-      
-       if not self.config.ludwig.get('input_features'):
-           raise ValueError("Ludwig input_features are required")
-      
-       if not self.config.ludwig.get('output_features'):
-           raise ValueError("Ludwig output_features are required")
+       # Identify which step types are used in this pipeline
+       step_types = {s.get('type') for s in self.config.steps}
+       uses_ludwig = any(t and t.startswith('ludwig_') for t in step_types)
+       uses_sklearn = any(t and t.startswith('sklearn_') for t in step_types)
+
+       # Only enforce Ludwig-specific fields when Ludwig steps are present
+       if uses_ludwig:
+           if not self.config.ludwig:
+               raise ValueError("Ludwig configuration is required for ludwig_* steps")
+           if not self.config.ludwig.get('input_features'):
+               raise ValueError("Ludwig input_features are required")
+           if not self.config.ludwig.get('output_features'):
+               raise ValueError("Ludwig output_features are required")
+
+       # Only enforce sklearn-specific fields when sklearn steps are present
+       if uses_sklearn:
+           if not self.config.sklearn_model:
+               raise ValueError("sklearn_model configuration is required for sklearn_* steps")
+           if not self.config.sklearn_model.get('type'):
+               raise ValueError("sklearn_model.type is required")
       
        logger.info("✅ Configuration valid")
   
@@ -167,6 +182,22 @@ class LudwigPipelineEngine:
        elif step_type == 'ludwig_visualize':
            from pipelines.handlers.ludwig_visualize import LudwigVisualizeHandler
            handler = LudwigVisualizeHandler(step_config, self.context)
+
+       elif step_type == 'sklearn_train':
+           from pipelines.handlers.sklearn_handler import SklearnTrainHandler
+           handler = SklearnTrainHandler(step_config, self.context, self.config.sklearn_model)
+
+       elif step_type == 'sklearn_evaluate':
+           from pipelines.handlers.sklearn_handler import SklearnEvaluateHandler
+           handler = SklearnEvaluateHandler(step_config, self.context)
+
+       elif step_type == 'sklearn_visualize':
+           from pipelines.handlers.sklearn_handler import SklearnVisualizeHandler
+           handler = SklearnVisualizeHandler(step_config, self.context)
+
+       elif step_type == 'sklearn_xai':
+           from pipelines.handlers.sklearn_handler import SklearnXAIHandler
+           handler = SklearnXAIHandler(step_config, self.context)
           
        else:
            raise ValueError(f"Unknown step type: {step_type}")

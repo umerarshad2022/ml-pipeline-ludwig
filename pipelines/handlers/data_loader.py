@@ -1,24 +1,37 @@
 """
 Data Loader Handler
-Loads data from various sources
+Loads data from various sources and applies configurable preprocessing.
 """
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import pandas as pd
+import numpy as np
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 class DataLoaderHandler:
-    """Handler for loading data from various sources"""
+    """
+    Handler for loading data from various sources.
+
+    Supported source types: csv, parquet, json.
+
+    Optional preprocessing (configured under the step's ``preprocessing`` key):
+        drop_columns  : list of column names to remove
+        scaling       : "standard" | "minmax" | "none"  (default: "none")
+        test_size     : float between 0 and 1 for train/test split (default: no split)
+
+    When ``test_size`` is set, the handler stores X_train, X_test, y_train, y_test
+    in the context (requires ``target_col`` or infers it from the first step result).
+    """
     
     def __init__(self, config: Dict[str, Any], context: Dict[str, Any]):
         self.config = config
         self.context = context
     
     def execute(self) -> Dict[str, Any]:
-        """Execute data loading"""
+        """Execute data loading and optional preprocessing"""
         logger.info("📥 Loading data...")
         
         source = self.config.get('source', {})
@@ -43,11 +56,104 @@ class DataLoaderHandler:
         
         logger.info(f"✅ Loaded {df.shape[0]} rows, {df.shape[1]} columns")
         logger.info(f"   Columns: {list(df.columns)}")
+
+        # Apply preprocessing if configured
+        preprocessing = self.config.get('preprocessing', {})
+        if preprocessing:
+            df = self._apply_preprocessing(df, preprocessing)
         
         # Store in context
         self.context['data'] = df
         
-        return {'data': df, 'shape': df.shape}
+        result: Dict[str, Any] = {'data': df, 'shape': df.shape}
+
+        # Optional train/test split
+        test_size = preprocessing.get('test_size') if preprocessing else None
+        if test_size:
+            result.update(self._split(df, preprocessing))
+
+        return result
+
+    # -----------------------------------------------------------------------
+
+    def _apply_preprocessing(self, df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
+        """Apply column dropping and feature scaling."""
+        # Drop columns
+        drop_cols: List[str] = cfg.get('drop_columns', [])
+        cols_to_drop = [c for c in drop_cols if c in df.columns]
+        if cols_to_drop:
+            df = df.drop(columns=cols_to_drop)
+            logger.info(f"   Dropped columns: {cols_to_drop}")
+
+        # Scaling
+        scaling = cfg.get('scaling', 'none')
+        if scaling and scaling != 'none':
+            target_col = cfg.get('target_col')
+            numeric_cols = [
+                c for c in df.select_dtypes(include=[np.number]).columns
+                if c != target_col
+            ]
+            if scaling == 'standard':
+                from sklearn.preprocessing import StandardScaler
+                scaler = StandardScaler()
+                df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+                self.context['scaler'] = scaler
+                logger.info(f"   Applied StandardScaler to: {numeric_cols}")
+            elif scaling == 'minmax':
+                from sklearn.preprocessing import MinMaxScaler
+                scaler = MinMaxScaler()
+                df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+                self.context['scaler'] = scaler
+                logger.info(f"   Applied MinMaxScaler to: {numeric_cols}")
+            else:
+                logger.warning(f"   Unknown scaling '{scaling}'; skipping.")
+
+        return df
+
+    def _split(self, df: pd.DataFrame, cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform a stratified train/test split and store results in context."""
+        from sklearn.model_selection import train_test_split
+
+        test_size: float = float(cfg.get('test_size', 0.2))
+        target_col: Optional[str] = cfg.get('target_col')
+        random_state: Optional[int] = cfg.get('random_state', 42)
+
+        if target_col and target_col in df.columns:
+            y = df[target_col]
+            X = df.drop(columns=[target_col])
+            try:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=random_state, stratify=y
+                )
+            except ValueError:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=test_size, random_state=random_state
+                )
+        else:
+            X_train, X_test = train_test_split(
+                df, test_size=test_size, random_state=random_state
+            )
+            y_train = y_test = None
+            logger.warning(
+                "train/test split performed without a target column; "
+                "y_train and y_test are not available in context."
+            )
+
+        self.context['X_train'] = X_train
+        self.context['X_test'] = X_test
+        self.context['y_train'] = y_train
+        self.context['y_test'] = y_test
+
+        logger.info(
+            f"✂️  Train/test split (test_size={test_size}): "
+            f"{len(X_train)} train / {len(X_test)} test"
+        )
+        return {
+            'X_train': X_train,
+            'X_test': X_test,
+            'y_train': y_train,
+            'y_test': y_test,
+        }
 
 
 class UnsupervisedLabelingHandler:

@@ -71,3 +71,12 @@ steps:
        - precision_recall_curve
        - learning_curve
      output_directory: artifacts/visualizations
+
+ - name: xai
+   type: sklearn_xai
+   config:
+     methods:
+       - shap
+       - lime
+     n_lime: 3
+     output_directory: artifacts/xgboost_model/xai
