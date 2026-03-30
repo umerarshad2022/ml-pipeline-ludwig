@@ -624,12 +624,14 @@ class SklearnXAIHandler:
 
         os.makedirs(output_directory, exist_ok=True)
         created: List[str] = []
+        sv = None
 
         if "shap" in methods:
-            shap_paths = self._run_shap(
+            shap_paths, sv = self._run_shap(
                 model, model_type, X_train, X_test, feature_cols, output_directory, plt,
                 kernel_background=self.config.get("kernel_background_samples", 50),
                 kernel_explain=self.config.get("kernel_explain_samples", 50),
+                y_test=y_test,
             )
             created.extend(shap_paths)
 
@@ -638,6 +640,14 @@ class SklearnXAIHandler:
                 model, X_train, X_test, y_test, feature_cols, n_lime, output_directory, plt
             )
             created.extend(lime_paths)
+
+        summary_path = self._write_xai_summary(
+            model_type, feature_cols, sv, output_directory,
+            n_shap_samples=len(X_test),
+            n_lime_instances=n_lime if "lime" in methods else 0,
+        )
+        if summary_path:
+            created.append(summary_path)
 
         logger.info(f"✅ {len(created)} XAI artifact(s) saved to {output_directory}")
         result = {"xai_artifacts": created, "output_directory": output_directory}
@@ -648,7 +658,7 @@ class SklearnXAIHandler:
 
     @staticmethod
     def _run_shap(model, model_type, X_train, X_test, feature_cols, out_dir, plt,
-                  kernel_background=50, kernel_explain=50):
+                  kernel_background=50, kernel_explain=50, y_test=None):
         try:
             import shap
         except ImportError:
@@ -657,33 +667,57 @@ class SklearnXAIHandler:
         logger.info("   🔷 Running SHAP analysis…")
         created: List[str] = []
 
-        # Choose explainer
+        # Choose explainer and compute SHAP values
         if model_type in ("random_forest", "xgboost"):
             explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(X_test)
+            shap_values_raw = explainer.shap_values(X_test)
+            X_shap = X_test
             # SHAP ≥ 0.40 returns ndarray of shape (n_samples, n_features, n_classes)
             # Older versions return a list [neg_class, pos_class]
-            if isinstance(shap_values, list):
-                sv = shap_values[1]
-            elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
-                sv = shap_values[:, :, 1]
+            if isinstance(shap_values_raw, list):
+                sv = shap_values_raw[1]
+                base_val = (
+                    float(explainer.expected_value[1])
+                    if hasattr(explainer.expected_value, "__len__")
+                    else float(explainer.expected_value)
+                )
+            elif isinstance(shap_values_raw, np.ndarray) and shap_values_raw.ndim == 3:
+                sv = shap_values_raw[:, :, 1]
+                base_val = (
+                    float(explainer.expected_value[1])
+                    if hasattr(explainer.expected_value, "__len__")
+                    else float(explainer.expected_value)
+                )
             else:
-                sv = shap_values
+                sv = shap_values_raw
+                base_val = float(explainer.expected_value)
         else:
             n_bg = min(kernel_background, len(X_train))
             n_ex = min(kernel_explain, len(X_test))
             explainer = shap.KernelExplainer(
                 model.predict_proba, shap.sample(X_train, n_bg)
             )
-            shap_values = explainer.shap_values(X_test.iloc[:n_ex])
-            if isinstance(shap_values, list):
-                sv = shap_values[1]
-            elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
-                sv = shap_values[:, :, 1]
+            X_shap = X_test.iloc[:n_ex]
+            shap_values_raw = explainer.shap_values(X_shap)
+            if isinstance(shap_values_raw, list):
+                sv = shap_values_raw[1]
+                base_val = (
+                    float(explainer.expected_value[1])
+                    if hasattr(explainer.expected_value, "__len__")
+                    else float(explainer.expected_value)
+                )
+            elif isinstance(shap_values_raw, np.ndarray) and shap_values_raw.ndim == 3:
+                sv = shap_values_raw[:, :, 1]
+                base_val = (
+                    float(explainer.expected_value[1])
+                    if hasattr(explainer.expected_value, "__len__")
+                    else float(explainer.expected_value)
+                )
             else:
-                sv = shap_values
+                sv = shap_values_raw
+                base_val = float(explainer.expected_value)
 
-        X_plot = X_test if len(X_test) <= 200 else X_test.iloc[:200]
+        X_plot = X_shap if len(X_shap) <= 200 else X_shap.iloc[:200]
         sv_plot = sv if len(sv) <= 200 else sv[:200]
 
         # Summary beeswarm
@@ -704,7 +738,59 @@ class SklearnXAIHandler:
         created.append(path)
         logger.info(f"   💾 {path}")
 
-        return created
+        # Waterfall plot for first anomaly prediction (falls back to index 0)
+        plot_idx = 0
+        if y_test is not None:
+            y_arr = np.array(y_test)
+            anomaly_mask = y_arr[:len(sv)] == 1
+            if anomaly_mask.any():
+                plot_idx = int(np.where(anomaly_mask)[0][0])
+        try:
+            exp_obj = shap.Explanation(
+                values=sv[plot_idx],
+                base_values=base_val,
+                data=X_shap.iloc[plot_idx].values,
+                feature_names=feature_cols,
+            )
+            plt.figure(figsize=(10, 6))
+            shap.waterfall_plot(exp_obj, show=False)
+            path = os.path.join(out_dir, "shap_waterfall.png")
+            plt.savefig(path, bbox_inches="tight", dpi=150)
+            plt.close()
+            created.append(path)
+            logger.info(f"   💾 {path}")
+        except Exception as exc:
+            logger.warning(f"   SHAP waterfall plot skipped: {exc}")
+
+        # Force plot for first sample
+        try:
+            plt.figure(figsize=(12, 3))
+            shap.force_plot(
+                base_val, sv[0], X_shap.iloc[0],
+                matplotlib=True, show=False,
+            )
+            path = os.path.join(out_dir, "shap_force.png")
+            plt.savefig(path, bbox_inches="tight", dpi=150)
+            plt.close()
+            created.append(path)
+            logger.info(f"   💾 {path}")
+        except Exception as exc:
+            logger.warning(f"   SHAP force plot skipped: {exc}")
+
+        # Dependence plots — one per feature
+        for feature in feature_cols:
+            try:
+                plt.figure(figsize=(8, 5))
+                shap.dependence_plot(feature, sv, X_shap, show=False)
+                path = os.path.join(out_dir, f"shap_dependence_{feature}.png")
+                plt.savefig(path, bbox_inches="tight", dpi=150)
+                plt.close()
+                created.append(path)
+                logger.info(f"   💾 {path}")
+            except Exception as exc:
+                logger.warning(f"   SHAP dependence plot for '{feature}' skipped: {exc}")
+
+        return created, sv
 
     # -- LIME ----------------------------------------------------------------
 
@@ -746,4 +832,88 @@ class SklearnXAIHandler:
             created.append(path)
             logger.info(f"   💾 {path}")
 
+        # Comprehensive multi-instance plot
+        n_multi = min(5, len(X_test))
+        if n_multi > 0:
+            try:
+                preds = model.predict(X_test.iloc[:n_multi])
+                fig, axes = plt.subplots(n_multi, 1, figsize=(10, 3 * n_multi))
+                if n_multi == 1:
+                    axes = [axes]
+                for i in range(n_multi):
+                    exp = explainer.explain_instance(
+                        X_test.iloc[i].values, predict_fn, num_features=len(feature_cols)
+                    )
+                    exp_list = exp.as_list(label=1)
+                    feat_labels = [item[0] for item in exp_list]
+                    importances = [item[1] for item in exp_list]
+                    axes[i].barh(
+                        feat_labels,
+                        importances,
+                        color=["tomato" if x < 0 else "steelblue" for x in importances],
+                    )
+                    axes[i].set_xlabel("Feature Importance")
+                    axes[i].set_title(f"Sample {i + 1} — Predicted: {preds[i]}")
+                    axes[i].axvline(x=0, color="black", linestyle="--", linewidth=0.8)
+                    axes[i].grid(alpha=0.3)
+                fig.suptitle("LIME Explanations — Multiple Instances", fontsize=13)
+                fig.tight_layout()
+                path = os.path.join(out_dir, "lime_multiple_instances.png")
+                fig.savefig(path, dpi=150, bbox_inches="tight")
+                plt.close(fig)
+                created.append(path)
+                logger.info(f"   💾 {path}")
+            except Exception as exc:
+                logger.warning(f"   LIME multiple-instances plot skipped: {exc}")
+
         return created
+
+    # -- XAI summary report --------------------------------------------------
+
+    @staticmethod
+    def _write_xai_summary(
+        model_type: str,
+        feature_cols: List[str],
+        sv: Optional[np.ndarray],
+        out_dir: str,
+        n_shap_samples: int,
+        n_lime_instances: int,
+    ) -> Optional[str]:
+        """Write a plain-text XAI analysis summary to ``xai_summary.txt``."""
+        summary_path = os.path.join(out_dir, "xai_summary.txt")
+        try:
+            with open(summary_path, "w") as f:
+                f.write("=" * 70 + "\n")
+                f.write("  XAI ANALYSIS SUMMARY\n")
+                f.write("=" * 70 + "\n\n")
+                f.write(f"Model type       : {model_type}\n")
+                f.write(f"Features         : {feature_cols}\n")
+                f.write(f"SHAP samples     : {n_shap_samples}\n")
+                f.write(f"LIME instances   : {n_lime_instances}\n\n")
+                if sv is not None:
+                    f.write("=" * 70 + "\n")
+                    f.write("  SHAP FEATURE IMPORTANCE (mean |SHAP value|)\n")
+                    f.write("=" * 70 + "\n\n")
+                    mean_abs = np.abs(sv).mean(axis=0)
+                    for feat, imp in sorted(
+                        zip(feature_cols, mean_abs), key=lambda x: -x[1]
+                    ):
+                        f.write(f"  {feat}: {imp:.4f}\n")
+                    f.write("\n")
+                f.write("=" * 70 + "\n")
+                f.write("  PLOTS GENERATED\n")
+                f.write("=" * 70 + "\n\n")
+                f.write("SHAP:\n")
+                f.write("  shap_summary.png          — beeswarm feature impact\n")
+                f.write("  shap_importance.png       — bar chart of mean |SHAP|\n")
+                f.write("  shap_waterfall.png        — single prediction breakdown\n")
+                f.write("  shap_force.png            — push/pull for first prediction\n")
+                f.write("  shap_dependence_*.png     — feature value vs SHAP impact\n\n")
+                f.write("LIME:\n")
+                f.write("  lime_instance_*.png           — individual explanations\n")
+                f.write("  lime_multiple_instances.png   — comparison across samples\n")
+            logger.info(f"   💾 {summary_path}")
+            return summary_path
+        except Exception as exc:
+            logger.warning(f"   XAI summary report skipped: {exc}")
+            return None
