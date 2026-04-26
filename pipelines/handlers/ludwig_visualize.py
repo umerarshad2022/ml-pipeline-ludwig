@@ -115,7 +115,7 @@ class LudwigVisualizeHandler:
     def _create_run_output_dir(self) -> Path:
         """Create an isolated per-run visualization output directory."""
         base_output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
-        run_id = self.config.get('run_id') or datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        run_id = self.config.get('run_id') or datetime.now().strftime('%Y%m%d_%H%M%S')
         run_output_dir = base_output_dir / f'run_{run_id}'
         run_output_dir.mkdir(parents=True, exist_ok=True)
         return run_output_dir
