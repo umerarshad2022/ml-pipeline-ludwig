@@ -23,12 +23,15 @@ RANDOM_STATE = 42
 
 # Create output directory
 os.makedirs(MODEL_OUTPUT_DIR, exist_ok=True)
+RUN_ID = datetime.now().strftime('%Y%m%d_%H%M%S')
+RUN_OUTPUT_DIR = os.path.join(MODEL_OUTPUT_DIR, f'run_{RUN_ID}')
+os.makedirs(RUN_OUTPUT_DIR, exist_ok=True)
 
 print("=" * 80)
 print("  RANDOM FOREST ANOMALY DETECTION")
 print("=" * 80)
 print(f"Data: {DATA_PATH}")
-print(f"Output: {MODEL_OUTPUT_DIR}")
+print(f"Output: {RUN_OUTPUT_DIR}")
 print("=" * 80)
 
 # Load data
@@ -121,7 +124,7 @@ for feature, importance in zip(feature_cols, rf_model.feature_importances_):
     print(f"   {feature}: {importance:.4f}")
 
 # Save model
-model_path = os.path.join(MODEL_OUTPUT_DIR, 'random_forest_model.pkl')
+model_path = os.path.join(RUN_OUTPUT_DIR, 'random_forest_model.pkl')
 joblib.dump(rf_model, model_path)
 print(f"\n💾 Model saved to: {model_path}")
 
@@ -134,7 +137,7 @@ metrics = {
     'average_precision': avg_precision,
     'confusion_matrix': cm.tolist()
 }
-metrics_path = os.path.join(MODEL_OUTPUT_DIR, 'metrics.txt')
+metrics_path = os.path.join(RUN_OUTPUT_DIR, 'metrics.txt')
 with open(metrics_path, 'w') as f:
     for key, value in metrics.items():
         f.write(f"{key}: {value}\n")
@@ -152,7 +155,7 @@ plt.title('Confusion Matrix - Random Forest')
 plt.ylabel('Actual')
 plt.xlabel('Predicted')
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
 print(f"   ✅ Confusion matrix saved")
 
 # 2. ROC Curve
@@ -166,7 +169,7 @@ plt.title('ROC Curve - Random Forest')
 plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'roc_curve.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'roc_curve.png'), dpi=150)
 print(f"   ✅ ROC curve saved")
 
 # 3. Precision-Recall Curve
@@ -179,13 +182,13 @@ plt.title('Precision-Recall Curve - Random Forest')
 plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'precision_recall_curve.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'precision_recall_curve.png'), dpi=150)
 print(f"   ✅ Precision-recall curve saved")
 
 print("\n" + "=" * 80)
 print("  ✅ RANDOM FOREST TRAINING COMPLETE")
 print("=" * 80)
-print(f"\n📁 All artifacts saved to: {MODEL_OUTPUT_DIR}/")
+print(f"\n📁 All artifacts saved to: {RUN_OUTPUT_DIR}/")
 print(f"   - Model: random_forest_model.pkl")
 print(f"   - Metrics: metrics.txt")
 print(f"   - Visualizations: *.png")

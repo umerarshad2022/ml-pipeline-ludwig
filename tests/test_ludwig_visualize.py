@@ -54,10 +54,12 @@ def test_ludwig_visualize_uses_cli_with_artifact_files(tmp_path, monkeypatch):
     config = {
         "visualizations": ["learning_curves", "confusion_matrix", "roc_curve"],
         "output_directory": str(vis_dir),
+        "run_id": "unit_test_run",
     }
 
     result = LudwigVisualizeHandler(config, context).execute()
 
+    assert result["output_directory"].endswith("run_unit_test_run")
     assert result["visualizations_created"] == ["learning_curves", "confusion_matrix", "roc_curve"]
     assert len(calls) == 3
     assert calls[0][0] == "learning_curves"

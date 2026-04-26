@@ -23,12 +23,15 @@ RANDOM_STATE = 42
 
 # Create output directory
 os.makedirs(MODEL_OUTPUT_DIR, exist_ok=True)
+RUN_ID = datetime.now().strftime('%Y%m%d_%H%M%S')
+RUN_OUTPUT_DIR = os.path.join(MODEL_OUTPUT_DIR, f'run_{RUN_ID}')
+os.makedirs(RUN_OUTPUT_DIR, exist_ok=True)
 
 print("=" * 80)
 print("  XGBOOST ANOMALY DETECTION")
 print("=" * 80)
 print(f"Data: {DATA_PATH}")
-print(f"Output: {MODEL_OUTPUT_DIR}")
+print(f"Output: {RUN_OUTPUT_DIR}")
 print("=" * 80)
 
 # Check if XGBoost is installed
@@ -145,7 +148,7 @@ for feature, importance in zip(feature_cols, xgb_model.feature_importances_):
     print(f"   {feature}: {importance:.4f}")
 
 # Save model
-model_path = os.path.join(MODEL_OUTPUT_DIR, 'xgboost_model.pkl')
+model_path = os.path.join(RUN_OUTPUT_DIR, 'xgboost_model.pkl')
 joblib.dump(xgb_model, model_path)
 print(f"\n💾 Model saved to: {model_path}")
 
@@ -158,7 +161,7 @@ metrics = {
     'average_precision': avg_precision,
     'confusion_matrix': cm.tolist()
 }
-metrics_path = os.path.join(MODEL_OUTPUT_DIR, 'metrics.txt')
+metrics_path = os.path.join(RUN_OUTPUT_DIR, 'metrics.txt')
 with open(metrics_path, 'w') as f:
     for key, value in metrics.items():
         f.write(f"{key}: {value}\n")
@@ -176,7 +179,7 @@ plt.title('Confusion Matrix - XGBoost')
 plt.ylabel('Actual')
 plt.xlabel('Predicted')
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
 print(f"   ✅ Confusion matrix saved")
 
 # 2. ROC Curve
@@ -190,7 +193,7 @@ plt.title('ROC Curve - XGBoost')
 plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'roc_curve.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'roc_curve.png'), dpi=150)
 print(f"   ✅ ROC curve saved")
 
 # 3. Precision-Recall Curve
@@ -203,7 +206,7 @@ plt.title('Precision-Recall Curve - XGBoost')
 plt.legend()
 plt.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'precision_recall_curve.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'precision_recall_curve.png'), dpi=150)
 print(f"   ✅ Precision-recall curve saved")
 
 # 4. Feature Importance Plot
@@ -211,13 +214,13 @@ plt.figure(figsize=(8, 6))
 xgb.plot_importance(xgb_model, max_num_features=10)
 plt.title('Feature Importance - XGBoost')
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_OUTPUT_DIR, 'feature_importance.png'), dpi=150)
+plt.savefig(os.path.join(RUN_OUTPUT_DIR, 'feature_importance.png'), dpi=150)
 print(f"   ✅ Feature importance plot saved")
 
 print("\n" + "=" * 80)
 print("  ✅ XGBOOST TRAINING COMPLETE")
 print("=" * 80)
-print(f"\n📁 All artifacts saved to: {MODEL_OUTPUT_DIR}/")
+print(f"\n📁 All artifacts saved to: {RUN_OUTPUT_DIR}/")
 print(f"   - Model: xgboost_model.pkl")
 print(f"   - Metrics: metrics.txt")
 print(f"   - Visualizations: *.png")

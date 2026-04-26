@@ -5,6 +5,7 @@ Creates visualizations from Ludwig training results
 import logging
 from typing import Dict, Any
 from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,7 @@ class LudwigVisualizeHandler:
             logger.warning("Could not locate Ludwig experiment directory, skipping visualizations")
             return {'skipped': True}
         
-        output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = self._create_run_output_dir()
         
         visualizations = self.config.get('visualizations', [])
         created = []
@@ -111,6 +111,14 @@ class LudwigVisualizeHandler:
             'output_directory': str(output_dir),
             'visualizations_created': created
         }
+
+    def _create_run_output_dir(self) -> Path:
+        """Create an isolated per-run visualization output directory."""
+        base_output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
+        run_id = self.config.get('run_id') or datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        run_output_dir = base_output_dir / f'run_{run_id}'
+        run_output_dir.mkdir(parents=True, exist_ok=True)
+        return run_output_dir
 
     def _resolve_experiment_dir(self, model_dir: Path) -> Path | None:
         """Resolve the concrete Ludwig experiment directory containing training stats."""
