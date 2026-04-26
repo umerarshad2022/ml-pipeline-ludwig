@@ -23,7 +23,7 @@ RANDOM_STATE = 42
 
 # Create output directory
 os.makedirs(MODEL_OUTPUT_DIR, exist_ok=True)
-RUN_ID = datetime.now().strftime('%Y%m%d_%H%M%S')
+RUN_ID = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
 RUN_OUTPUT_DIR = os.path.join(MODEL_OUTPUT_DIR, f'run_{RUN_ID}')
 os.makedirs(RUN_OUTPUT_DIR, exist_ok=True)
 
