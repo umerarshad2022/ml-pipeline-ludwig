@@ -87,5 +87,5 @@ def test_ludwig_visualize_skips_when_required_files_missing(tmp_path, monkeypatc
 
     result = LudwigVisualizeHandler(config, context).execute()
 
-    assert result["visualizations_created"] == []
+    assert result["skipped"] is True
     assert calls == []
