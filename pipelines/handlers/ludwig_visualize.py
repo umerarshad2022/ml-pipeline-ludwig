@@ -5,9 +5,6 @@ Creates visualizations from Ludwig training results
 import logging
 from typing import Dict, Any
 from pathlib import Path
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +22,9 @@ class LudwigVisualizeHandler:
         
         try:
             from ludwig.visualize import (
-                learning_curves,
-                confusion_matrix,
-                roc_curves,
-                calibration_1_vs_all
+                learning_curves_cli,
+                confusion_matrix_cli,
+                roc_curves_from_test_statistics_cli
             )
         except ImportError:
             logger.warning("Ludwig visualize module not available, skipping visualizations")
@@ -43,37 +39,61 @@ class LudwigVisualizeHandler:
         if not model_dir:
             logger.warning("No model directory available, skipping visualizations")
             return {'skipped': True}
+
+        experiment_dir = self._resolve_experiment_dir(Path(model_dir))
+        if not experiment_dir:
+            logger.warning("Could not locate Ludwig experiment directory, skipping visualizations")
+            return {'skipped': True}
         
         output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
         output_dir.mkdir(parents=True, exist_ok=True)
         
         visualizations = self.config.get('visualizations', [])
         created = []
+        training_stats_path = self._find_first_file(experiment_dir, 'training_statistics.json')
+        metadata_path = self._find_first_file(experiment_dir, 'training_set_metadata.json')
+        test_stats_path = self._resolve_test_statistics_path(experiment_dir)
         
         # Generate each visualization
         for viz_type in visualizations:
             try:
                 if viz_type == 'learning_curves':
+                    if not training_stats_path:
+                        logger.warning("   training_statistics.json not found, skipping learning curves")
+                        continue
                     logger.info("   Creating learning curves...")
-                    learning_curves(
-                        [str(model_dir)],
-                        output_directory=str(output_dir)
+                    learning_curves_cli(
+                        str(training_stats_path),
+                        output_directory=str(output_dir),
+                        file_format='png'
                     )
                     created.append('learning_curves')
                 
                 elif viz_type == 'confusion_matrix':
+                    if not test_stats_path or not metadata_path:
+                        logger.warning("   test statistics or metadata missing, skipping confusion matrix")
+                        continue
                     logger.info("   Creating confusion matrix...")
-                    confusion_matrix(
-                        [str(model_dir)],
-                        output_directory=str(output_dir)
+                    confusion_matrix_cli(
+                        str(test_stats_path),
+                        ground_truth_metadata=str(metadata_path),
+                        output_feature_name=None,
+                        top_n_classes=[10],
+                        normalize=True,
+                        output_directory=str(output_dir),
+                        file_format='png'
                     )
                     created.append('confusion_matrix')
                 
                 elif viz_type == 'roc_curve':
+                    if not test_stats_path:
+                        logger.warning("   test_statistics.json not found, skipping ROC curve")
+                        continue
                     logger.info("   Creating ROC curve...")
-                    roc_curves(
-                        [str(model_dir)],
-                        output_directory=str(output_dir)
+                    roc_curves_from_test_statistics_cli(
+                        str(test_stats_path),
+                        output_directory=str(output_dir),
+                        file_format='png'
                     )
                     created.append('roc_curve')
                 
@@ -91,3 +111,49 @@ class LudwigVisualizeHandler:
             'output_directory': str(output_dir),
             'visualizations_created': created
         }
+
+    def _resolve_experiment_dir(self, model_dir: Path) -> Path | None:
+        """Resolve the concrete Ludwig experiment directory containing training stats."""
+        if model_dir.is_file():
+            model_dir = model_dir.parent
+
+        if not model_dir.exists():
+            return None
+
+        direct_stats = model_dir / 'training_statistics.json'
+        if direct_stats.exists():
+            return model_dir
+
+        nested_stats = sorted(model_dir.rglob('training_statistics.json'))
+        if nested_stats:
+            return nested_stats[-1].parent
+
+        return None
+
+    def _find_first_file(self, root: Path, filename: str) -> Path | None:
+        """Find a file in root or nested directories."""
+        direct = root / filename
+        if direct.exists():
+            return direct
+
+        matches = sorted(root.rglob(filename))
+        return matches[0] if matches else None
+
+    def _resolve_test_statistics_path(self, experiment_dir: Path) -> Path | None:
+        """Resolve test statistics from evaluate step output or experiment directory."""
+        candidates = [experiment_dir]
+
+        for value in self.context.values():
+            if isinstance(value, dict) and value.get('test_stats') is not None:
+                evaluate_dir = value.get('output_directory')
+                if evaluate_dir:
+                    candidates.append(Path(evaluate_dir))
+
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            test_stats = self._find_first_file(candidate, 'test_statistics.json')
+            if test_stats:
+                return test_stats
+
+        return None
