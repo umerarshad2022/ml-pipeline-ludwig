@@ -348,6 +348,11 @@ steps:
     output_directory: artifacts/visualizations
 ```
 
+Notes:
+- Output files are generated as PNGs.
+- `roc_curve` supports Ludwig visualize API differences across versions.
+- Missing artifacts skip only the affected plot, not the entire visualization step.
+
 ---
 
 ## `experiment` (optional)

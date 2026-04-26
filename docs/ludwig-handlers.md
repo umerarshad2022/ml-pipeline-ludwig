@@ -217,6 +217,11 @@ result = handler.execute()
 Calls Ludwig's built-in `ludwig.visualize` functions to create training and
 evaluation plots. Skips gracefully if Ludwig's visualize module is not available.
 
+Recent behavior improvements:
+- Uses compatible Ludwig ROC function names across versions (`roc_curves_from_test_statistics_cli` and fallback `roc_curves_cli`).
+- Generates any plot whose required artifacts exist (instead of failing/skipping all plots together).
+- Logs full exceptions for failed visualizations so pipeline logs are readable and actionable.
+
 ### Available Visualisations
 
 | Name | What it shows |
@@ -247,6 +252,13 @@ evaluation plots. Skips gracefully if Ludwig's visualize module is not available
 
 **Requires:** `context["train-ludwig"]["output_directory"]` (from train step)
 **or** `config["model_path"]`
+
+Artifact expectations per visualisation:
+- `learning_curves` needs `training_statistics.json`
+- `confusion_matrix` needs `test_statistics.json` and `training_set_metadata.json`
+- `roc_curve` needs `test_statistics.json`
+
+If one artifact is missing, only that visualisation is skipped; others still run.
 
 ---
 
