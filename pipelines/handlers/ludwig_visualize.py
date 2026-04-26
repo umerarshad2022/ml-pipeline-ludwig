@@ -3,7 +3,7 @@ Ludwig Visualization Handler
 Creates visualizations from Ludwig training results
 """
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 from pathlib import Path
 from datetime import datetime
 
@@ -22,13 +22,9 @@ class LudwigVisualizeHandler:
         logger.info("📊 Generating visualizations...")
         
         try:
-            from ludwig.visualize import (
-                learning_curves_cli,
-                confusion_matrix_cli,
-                roc_curves_from_test_statistics_cli
-            )
-        except ImportError:
-            logger.warning("Ludwig visualize module not available, skipping visualizations")
+            import ludwig.visualize as ludwig_visualize
+        except Exception as e:
+            logger.warning(f"Ludwig visualize module not available, skipping visualizations: {e}")
             return {'skipped': True}
         
         # Get model output directory
@@ -53,6 +49,10 @@ class LudwigVisualizeHandler:
         training_stats_path = self._find_first_file(experiment_dir, 'training_statistics.json')
         metadata_path = self._find_first_file(experiment_dir, 'training_set_metadata.json')
         test_stats_path = self._resolve_test_statistics_path(experiment_dir)
+
+        if not training_stats_path and not test_stats_path:
+            logger.warning("No Ludwig statistics artifacts found, skipping visualizations")
+            return {'skipped': True}
         
         # Generate each visualization
         for viz_type in visualizations:
@@ -62,6 +62,11 @@ class LudwigVisualizeHandler:
                         logger.warning("   training_statistics.json not found, skipping learning curves")
                         continue
                     logger.info("   Creating learning curves...")
+                    learning_curves_cli = self._resolve_visualize_function(
+                        ludwig_visualize,
+                        viz_type,
+                        ['learning_curves_cli']
+                    )
                     learning_curves_cli(
                         str(training_stats_path),
                         output_directory=str(output_dir),
@@ -74,11 +79,16 @@ class LudwigVisualizeHandler:
                         logger.warning("   test statistics or metadata missing, skipping confusion matrix")
                         continue
                     logger.info("   Creating confusion matrix...")
+                    confusion_matrix_cli = self._resolve_visualize_function(
+                        ludwig_visualize,
+                        viz_type,
+                        ['confusion_matrix_cli']
+                    )
                     confusion_matrix_cli(
                         str(test_stats_path),
                         ground_truth_metadata=str(metadata_path),
                         output_feature_name=None,
-                        top_n_classes=[10],
+                        top_n_classes=10,
                         normalize=True,
                         output_directory=str(output_dir),
                         file_format='png'
@@ -90,7 +100,12 @@ class LudwigVisualizeHandler:
                         logger.warning("   test_statistics.json not found, skipping ROC curve")
                         continue
                     logger.info("   Creating ROC curve...")
-                    roc_curves_from_test_statistics_cli(
+                    roc_curves_cli = self._resolve_visualize_function(
+                        ludwig_visualize,
+                        viz_type,
+                        ['roc_curves_from_test_statistics_cli', 'roc_curves_cli']
+                    )
+                    roc_curves_cli(
                         str(test_stats_path),
                         output_directory=str(output_dir),
                         file_format='png'
@@ -103,7 +118,7 @@ class LudwigVisualizeHandler:
                     logger.warning("   Feature importance requires tree-based models, skipping...")
                 
             except Exception as e:
-                logger.warning(f"   Failed to create {viz_type}: {e}")
+                logger.exception(f"   Failed to create {viz_type}: {e}")
         
         logger.info(f"✅ Created {len(created)} visualizations in {output_dir}")
         
@@ -111,6 +126,22 @@ class LudwigVisualizeHandler:
             'output_directory': str(output_dir),
             'visualizations_created': created
         }
+
+    def _resolve_visualize_function(
+        self,
+        visualize_module: Any,
+        viz_type: str,
+        candidates: list[str]
+    ) -> Callable[..., Any]:
+        """Resolve Ludwig visualization function across supported API names."""
+        for fn_name in candidates:
+            fn = getattr(visualize_module, fn_name, None)
+            if callable(fn):
+                return fn
+        raise AttributeError(
+            f"No Ludwig visualization function found for {viz_type}. "
+            f"Tried: {', '.join(candidates)}"
+        )
 
     def _create_run_output_dir(self) -> Path:
         """Create an isolated per-run visualization output directory."""
@@ -136,7 +167,7 @@ class LudwigVisualizeHandler:
         if nested_stats:
             return nested_stats[-1].parent
 
-        return None
+        return model_dir
 
     def _find_first_file(self, root: Path, filename: str) -> Path | None:
         """Find a file in root or nested directories."""
