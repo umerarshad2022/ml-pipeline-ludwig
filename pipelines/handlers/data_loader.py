@@ -189,17 +189,45 @@ class UnsupervisedLabelingHandler:
         logger.info(f"   Contamination: {contamination}")
         
         if method == 'isolation_forest':
+            # Skip if labels are already present in the data (e.g. loaded from CSV).
+            # This matches the behaviour of the standalone training scripts and
+            # prevents overwriting real labels with coarse pseudo-labels that
+            # lead to a trivially-perfect AUC.
+            if output_column in df.columns:
+                n_anomalies = int(df[output_column].sum())
+                logger.info(
+                    f"✅ Column '{output_column}' already present — "
+                    f"skipping re-labeling ({n_anomalies}/{len(df)} anomalies, "
+                    f"{n_anomalies / len(df) * 100:.1f}%)"
+                )
+                self.context['data'] = df
+                return {
+                    'labeled_data': df,
+                    'n_anomalies': n_anomalies,
+                    'anomaly_rate': float(n_anomalies / len(df)),
+                }
+
             X = df[[feature]].values
-            
-            logger.info("🎯 Training Isolation Forest for labeling...")
+
+            # Fit IsolationForest on a training-only portion to prevent data
+            # leakage: if we fit on all rows (including future test rows) and
+            # use those as ground-truth labels, the downstream classifier can
+            # trivially replicate the labeling function, inflating AUC to 1.0.
+            test_size = float(self.config.get('test_size', 0.2))
+            random_state = int(self.config.get('random_state', 42))
+            from sklearn.model_selection import train_test_split as _tts
+            X_train_label, _ = _tts(X, test_size=test_size, random_state=random_state)
+
+            logger.info("🎯 Training Isolation Forest for labeling (on training portion only)...")
             model = IsolationForest(
                 contamination=contamination,
-                random_state=42,
+                random_state=random_state,
                 n_jobs=-1
             )
-            model.fit(X)
-            
-            # Predict: -1 = anomaly, 1 = normal
+            model.fit(X_train_label)
+
+            # Predict on the full dataset using the model trained on training
+            # data only — no leakage into the test split.
             predictions = model.predict(X)
             
             # Convert to binary: 1 = anomaly, 0 = normal

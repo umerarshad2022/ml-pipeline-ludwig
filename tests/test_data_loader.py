@@ -187,6 +187,62 @@ class TestUnsupervisedLabelingHandler:
         assert set(context["data"]["is_anomaly"].unique()).issubset({0, 1})
         assert result["n_anomalies"] > 0
 
+    def test_no_data_leakage_in_labels(self, tmp_path):
+        """IsolationForest must be fit only on training data.
+
+        When labels are assigned using a model that saw the full dataset
+        (including future test rows) the downstream classifier trivially
+        replicates the labeling boundary and achieves AUC≈1.0.
+        We verify this by checking that, after the fix, test-set labels are
+        NOT identical to what a full-dataset fit would have produced for at
+        least some rows.
+        """
+        import numpy as np
+        import pandas as pd
+        from sklearn.ensemble import IsolationForest
+        from sklearn.model_selection import train_test_split
+        from pipelines.handlers.data_loader import (
+            DataLoaderHandler,
+            UnsupervisedLabelingHandler,
+        )
+
+        np.random.seed(0)
+        n = 500
+        df = pd.DataFrame({"active_users": np.random.randint(0, 100, n)})
+        csv_path = tmp_path / "data.csv"
+        df.to_csv(csv_path, index=False)
+
+        context = {}
+        DataLoaderHandler({"source": {"type": "csv", "path": str(csv_path)}}, context).execute()
+        handler = UnsupervisedLabelingHandler(
+            {
+                "method": "isolation_forest",
+                "contamination": 0.10,
+                "feature": "active_users",
+                "output_column": "is_anomaly",
+                "test_size": 0.2,
+                "random_state": 42,
+            },
+            context,
+        )
+        handler.execute()
+
+        # Labels produced by the fixed handler (fit on 80% only)
+        labels_fixed = context["data"]["is_anomaly"].values
+
+        # Labels produced by naive full-dataset fit (the old leaky behaviour)
+        X_all = df[["active_users"]].values
+        iso_full = IsolationForest(contamination=0.10, random_state=42, n_jobs=-1)
+        iso_full.fit(X_all)
+        labels_full = (iso_full.predict(X_all) == -1).astype(int)
+
+        # After the fix the labels should differ on at least one row,
+        # proving IsolationForest was NOT fit on all data.
+        assert not np.array_equal(labels_fixed, labels_full), (
+            "Labels are identical to the full-dataset fit — "
+            "IsolationForest is still being trained on all data (data leakage)."
+        )
+
     def test_no_data_raises(self):
         from pipelines.handlers.data_loader import UnsupervisedLabelingHandler
 
