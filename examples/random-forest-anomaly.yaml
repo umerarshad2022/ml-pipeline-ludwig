@@ -56,15 +56,15 @@ steps:
    config:
      output_directory: artifacts/evaluation
 
-  - name: visualize
-    type: sklearn_visualize
-    config:
-      visualizations:
-        - feature_importance
-        - confusion_matrix
-        - roc_curve
-        - precision_recall_curve
-      output_directory: artifacts/random_forest_model/visualizations
+ - name: visualize
+   type: sklearn_visualize
+   config:
+     visualizations:
+       - feature_importance
+       - confusion_matrix
+       - roc_curve
+       - precision_recall_curve
+     output_directory: artifacts/random_forest_model/visualizations
 
  - name: xai
    type: sklearn_xai

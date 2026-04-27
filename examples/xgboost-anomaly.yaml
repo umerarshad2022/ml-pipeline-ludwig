@@ -61,16 +61,16 @@ steps:
    config:
      output_directory: artifacts/evaluation
 
-  - name: visualize
-    type: sklearn_visualize
-    config:
-      visualizations:
-        - feature_importance
-        - confusion_matrix
-        - roc_curve
-        - precision_recall_curve
-        - learning_curve
-      output_directory: artifacts/xgboost_model/visualizations
+ - name: visualize
+   type: sklearn_visualize
+   config:
+     visualizations:
+       - feature_importance
+       - confusion_matrix
+       - roc_curve
+       - precision_recall_curve
+       - learning_curve
+     output_directory: artifacts/xgboost_model/visualizations
 
  - name: xai
    type: sklearn_xai
