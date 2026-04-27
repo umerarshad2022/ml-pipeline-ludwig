@@ -438,8 +438,13 @@ class SklearnXAIHandler:
                     mode="classification",
                 )
 
-                fn = model.predict_proba if hasattr(model, "predict_proba") else None
-                if fn:
+                fn_raw = model.predict_proba if hasattr(model, "predict_proba") else None
+                if fn_raw:
+                    _fc = feature_cols
+
+                    def fn(X_arr, _predict=fn_raw, _cols=_fc):
+                        return _predict(pd.DataFrame(X_arr, columns=_cols))
+
                     max_n = min(n_lime, len(X_test))
                     for i in range(max_n):
                         exp = explainer.explain_instance(np.asarray(X_test.iloc[i]), fn, num_features=min(10, len(feature_cols)))

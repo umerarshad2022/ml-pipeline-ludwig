@@ -300,6 +300,34 @@ class TestSklearnXAIHandler:
         for path in result["xai_artifacts"]:
             assert os.path.exists(path)
 
+    def test_lime_no_feature_names_warning(self, simple_context, tmp_path):
+        """LIME must not trigger sklearn's 'X does not have valid feature names' warning."""
+        try:
+            from lime.lime_tabular import LimeTabularExplainer  # noqa: F401
+        except ImportError:
+            pytest.skip("lime not installed")
+
+        import warnings
+
+        from pipelines.handlers.sklearn_handler import SklearnXAIHandler
+
+        self._setup(simple_context, tmp_path)
+        xai_dir = str(tmp_path / "xai_lime")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = SklearnXAIHandler(
+                {"output_directory": xai_dir, "methods": ["lime"], "n_lime": 2},
+                simple_context,
+            ).execute()
+        feature_name_warnings = [
+            x for x in w if "does not have valid feature names" in str(x.message)
+        ]
+        assert feature_name_warnings == [], (
+            "model.predict_proba was called with unnamed numpy array: "
+            + str(feature_name_warnings[0].message)
+        )
+        assert len(result["xai_artifacts"]) == 2
+
     def test_no_model_raises(self):
         from pipelines.handlers.sklearn_handler import SklearnXAIHandler
 
