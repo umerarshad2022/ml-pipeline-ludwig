@@ -367,7 +367,8 @@ class SklearnXAIHandler:
                 import shap
 
                 if model_type in ("random_forest", "xgboost"):
-                    explainer = shap.TreeExplainer(model)
+                    model_output = "probability" if model_type == "xgboost" else "default"
+                    explainer = shap.TreeExplainer(model, model_output=model_output)
                     sv = explainer.shap_values(X_test)
                 else:
                     bg_n = min(int(self.config.get("kernel_background_samples", 50)), len(X_train))
