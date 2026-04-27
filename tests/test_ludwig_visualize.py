@@ -129,3 +129,32 @@ def test_ludwig_visualize_supports_legacy_roc_function_name(tmp_path, monkeypatc
 
     assert result["visualizations_created"] == ["roc_curve"]
     assert calls[0][1].endswith("test_statistics.json")
+
+
+def test_ludwig_visualize_defaults_to_model_scoped_visualization_dir(tmp_path, monkeypatch):
+    from pipelines.handlers.ludwig_visualize import LudwigVisualizeHandler
+
+    train_dir = tmp_path / "artifacts" / "ludwig_model" / "experiment_0"
+    eval_dir = tmp_path / "artifacts" / "evaluation"
+    train_dir.mkdir(parents=True)
+    eval_dir.mkdir(parents=True)
+    (train_dir / "training_statistics.json").write_text("{}")
+    (eval_dir / "test_statistics.json").write_text("{}")
+
+    calls = []
+    _register_fake_ludwig_visualize(monkeypatch, calls)
+
+    context = {
+        "train-ludwig": {"output_directory": str(train_dir)},
+        "evaluate": {"test_stats": {"is_anomaly": {}}, "output_directory": str(eval_dir)},
+    }
+    config = {
+        "visualizations": ["roc_curve"],
+        "run_id": "unit_test_run",
+    }
+
+    result = LudwigVisualizeHandler(config, context).execute()
+
+    expected_prefix = str(train_dir / "visualizations" / "run_unit_test_run")
+    assert result["output_directory"] == expected_prefix
+    assert result["visualizations_created"] == ["roc_curve"]

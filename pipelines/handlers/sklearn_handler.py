@@ -34,6 +34,16 @@ import seaborn as sns
 logger = logging.getLogger(__name__)
 
 
+def _build_run_timestamp(config: Dict[str, Any]) -> str:
+    """Build a run-specific timestamp suffix for artifact names."""
+    return str(config.get("run_id") or time.strftime("%Y%m%d_%H%M%S"))
+
+
+def _timestamped_png_path(output_directory: str, base_name: str, run_ts: str) -> str:
+    """Create a timestamped PNG path to avoid overwriting prior runs."""
+    return os.path.join(output_directory, f"{base_name}_{run_ts}.png")
+
+
 def _build_model(model_type: str, params: Dict[str, Any]):
     """Build a classifier from model type + params."""
     model_type = (model_type or "").lower()
@@ -204,6 +214,7 @@ class SklearnVisualizeHandler:
             raise ValueError("No trained model in context")
 
         model = model_info["model"] if isinstance(model_info, dict) else model_info
+        model_type = model_info.get("model_type", "") if isinstance(model_info, dict) else ""
         X_test = self.context.get("X_test")
         y_test = self.context.get("y_test")
         if X_test is None or y_test is None:
@@ -213,8 +224,11 @@ class SklearnVisualizeHandler:
             "visualizations",
             ["confusion_matrix", "roc_curve", "precision_recall_curve"],
         )
-        output_directory = self.config.get("output_directory", "artifacts/visualizations")
+        output_directory = self.config.get(
+            "output_directory", f"artifacts/{model_type}_model/visualizations"
+        )
         Path(output_directory).mkdir(parents=True, exist_ok=True)
+        run_ts = _build_run_timestamp(self.config)
         created: List[str] = []
 
         y_pred = eval_info.get("y_pred")
@@ -231,7 +245,7 @@ class SklearnVisualizeHandler:
             ax.set_xlabel("Predicted")
             ax.set_ylabel("Actual")
             ax.set_title("Confusion Matrix")
-            path = os.path.join(output_directory, "confusion_matrix.png")
+            path = _timestamped_png_path(output_directory, "confusion_matrix", run_ts)
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)
             created.append(path)
@@ -246,7 +260,7 @@ class SklearnVisualizeHandler:
             ax.set_ylabel("True Positive Rate")
             ax.set_title("ROC Curve")
             ax.legend(loc="lower right")
-            path = os.path.join(output_directory, "roc_curve.png")
+            path = _timestamped_png_path(output_directory, "roc_curve", run_ts)
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)
             created.append(path)
@@ -260,7 +274,7 @@ class SklearnVisualizeHandler:
             ax.set_ylabel("Precision")
             ax.set_title("Precision-Recall Curve")
             ax.legend(loc="best")
-            path = os.path.join(output_directory, "precision_recall_curve.png")
+            path = _timestamped_png_path(output_directory, "precision_recall_curve", run_ts)
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)
             created.append(path)
@@ -272,7 +286,7 @@ class SklearnVisualizeHandler:
             fig, ax = plt.subplots(figsize=(8, max(4, len(feature_cols) * 0.5)))
             ax.barh(np.array(feature_cols)[order], importances[order])
             ax.set_title("Feature Importance")
-            path = os.path.join(output_directory, "feature_importance.png")
+            path = _timestamped_png_path(output_directory, "feature_importance", run_ts)
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)
             created.append(path)
@@ -284,7 +298,7 @@ class SklearnVisualizeHandler:
             fig, ax = plt.subplots(figsize=(8, max(4, len(feature_cols) * 0.5)))
             ax.barh(np.array(feature_cols)[order], coefs[order])
             ax.set_title("Model Coefficients")
-            path = os.path.join(output_directory, "coefficients.png")
+            path = _timestamped_png_path(output_directory, "coefficients", run_ts)
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)
             created.append(path)
@@ -309,7 +323,7 @@ class SklearnVisualizeHandler:
                 ax.set_ylabel("ROC AUC")
                 ax.set_title("Learning Curve")
                 ax.legend(loc="best")
-                path = os.path.join(output_directory, "learning_curve.png")
+                path = _timestamped_png_path(output_directory, "learning_curve", run_ts)
                 fig.savefig(path, bbox_inches="tight", dpi=150)
                 plt.close(fig)
                 created.append(path)
@@ -338,8 +352,11 @@ class SklearnXAIHandler:
         if X_train is None or X_test is None:
             raise ValueError("Missing X_train/X_test in context")
 
-        output_directory = self.config.get("output_directory", "artifacts/xai")
+        output_directory = self.config.get(
+            "output_directory", f"artifacts/{model_type}_model/xai"
+        )
         Path(output_directory).mkdir(parents=True, exist_ok=True)
+        run_ts = _build_run_timestamp(self.config)
         methods = self.config.get("methods", ["shap"])
         n_lime = int(self.config.get("n_lime", 3))
         created: List[str] = []
@@ -392,7 +409,7 @@ class SklearnXAIHandler:
 
                     fig, ax = plt.subplots(figsize=(8, max(4, len(plot_feature_cols) * 0.6)))
                     shap.summary_plot(sv_plot, X_plot, feature_names=plot_feature_cols, show=False)
-                    path = os.path.join(output_directory, "shap_summary.png")
+                    path = _timestamped_png_path(output_directory, "shap_summary", run_ts)
                     plt.savefig(path, bbox_inches="tight", dpi=150)
                     plt.close(fig)
                     created.append(path)
@@ -401,7 +418,7 @@ class SklearnXAIHandler:
                     shap.summary_plot(
                         sv_plot, X_plot, feature_names=plot_feature_cols, plot_type="bar", show=False
                     )
-                    path = os.path.join(output_directory, "shap_importance.png")
+                    path = _timestamped_png_path(output_directory, "shap_importance", run_ts)
                     plt.savefig(path, bbox_inches="tight", dpi=150)
                     plt.close(fig)
                     created.append(path)
@@ -427,7 +444,7 @@ class SklearnXAIHandler:
                     for i in range(max_n):
                         exp = explainer.explain_instance(np.asarray(X_test.iloc[i]), fn, num_features=min(10, len(feature_cols)))
                         fig = exp.as_pyplot_figure()
-                        path = os.path.join(output_directory, f"lime_instance_{i}.png")
+                        path = _timestamped_png_path(output_directory, f"lime_instance_{i}", run_ts)
                         fig.savefig(path, bbox_inches="tight", dpi=150)
                         plt.close(fig)
                         created.append(path)

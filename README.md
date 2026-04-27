@@ -226,18 +226,20 @@ artifacts/
 ├── random_forest_model/
 │   ├── random_forest_model.pkl        # Trained model
 │   ├── metrics.txt                    # Performance metrics
-│   ├── confusion_matrix.png           # Confusion matrix
-│   ├── roc_curve.png                  # ROC curve
-│   ├── precision_recall_curve.png     # PR curve
-│   └── xai/                           # XAI visualizations (8 files)
+│   ├── visualizations/
+│   │   ├── confusion_matrix_<timestamp>.png
+│   │   ├── roc_curve_<timestamp>.png
+│   │   └── precision_recall_curve_<timestamp>.png
+│   └── xai/                           # XAI visualizations with timestamped PNG names
 └── xgboost_model/
     ├── xgboost_model.pkl              # Trained model
     ├── metrics.txt                    # Performance metrics
-    ├── confusion_matrix.png
-    ├── roc_curve.png
-    ├── precision_recall_curve.png
-    ├── feature_importance.png
-    └── xai/                           # XAI visualizations (8 files)
+    ├── visualizations/
+    │   ├── confusion_matrix_<timestamp>.png
+    │   ├── roc_curve_<timestamp>.png
+    │   ├── precision_recall_curve_<timestamp>.png
+    │   └── feature_importance_<timestamp>.png
+    └── xai/                           # XAI visualizations with timestamped PNG names
 ```
 
 ## 🔧 Configuration

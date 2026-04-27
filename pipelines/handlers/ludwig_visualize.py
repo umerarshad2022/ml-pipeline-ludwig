@@ -42,7 +42,7 @@ class LudwigVisualizeHandler:
             logger.warning("Could not locate Ludwig experiment directory, skipping visualizations")
             return {'skipped': True}
         
-        output_dir = self._create_run_output_dir()
+        output_dir = self._create_run_output_dir(Path(model_dir))
         
         visualizations = self.config.get('visualizations', [])
         created = []
@@ -143,9 +143,11 @@ class LudwigVisualizeHandler:
             f"Tried: {', '.join(candidates)}"
         )
 
-    def _create_run_output_dir(self) -> Path:
+    def _create_run_output_dir(self, model_dir: Path) -> Path:
         """Create an isolated per-run visualization output directory."""
-        base_output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
+        base_output_dir = Path(
+            self.config.get('output_directory', str(model_dir / 'visualizations'))
+        )
         run_id = self.config.get('run_id') or datetime.now().strftime('%Y%m%d_%H%M%S_%f')
         run_output_dir = base_output_dir / f'run_{run_id}'
         run_output_dir.mkdir(parents=True, exist_ok=True)

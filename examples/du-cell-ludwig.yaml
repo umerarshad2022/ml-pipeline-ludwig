@@ -69,11 +69,11 @@ steps:
    type: ludwig_evaluate
    config:
      output_directory: artifacts/evaluation
- - name: visualize
-   type: ludwig_visualize
-   config:
-     visualizations:
-       - learning_curves
-       - confusion_matrix
-       - roc_curve
-     output_directory: artifacts/visualizations
+  - name: visualize
+    type: ludwig_visualize
+    config:
+      visualizations:
+        - learning_curves
+        - confusion_matrix
+        - roc_curve
+      output_directory: artifacts/ludwig_model/visualizations

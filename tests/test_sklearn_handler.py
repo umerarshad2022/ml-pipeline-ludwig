@@ -211,6 +211,26 @@ class TestSklearnVisualizeHandler:
         ).execute()
         assert any("feature_importance" in p for p in result["visualizations"])
 
+    def test_visualization_uses_timestamped_filenames(self, simple_context, tmp_path):
+        from pipelines.handlers.sklearn_handler import SklearnVisualizeHandler
+        import os
+
+        self._setup(simple_context, tmp_path)
+        vis_dir = str(tmp_path / "vis_ts")
+        run_id = "20260427_171400"
+        result = SklearnVisualizeHandler(
+            {
+                "output_directory": vis_dir,
+                "run_id": run_id,
+                "visualizations": ["confusion_matrix", "roc_curve"],
+            },
+            simple_context,
+        ).execute()
+
+        assert all(path.endswith(f"_{run_id}.png") for path in result["visualizations"])
+        for path in result["visualizations"]:
+            assert os.path.exists(path)
+
 
 # ---------------------------------------------------------------------------
 # SklearnXAIHandler
@@ -254,6 +274,29 @@ class TestSklearnXAIHandler:
         ).execute()
 
         assert len(result["xai_artifacts"]) > 0
+        for path in result["xai_artifacts"]:
+            assert os.path.exists(path)
+
+    def test_xai_uses_timestamped_filenames(self, simple_context, tmp_path):
+        import os
+
+        try:
+            import shap  # noqa: F401
+        except ImportError:
+            pytest.skip("shap not installed")
+
+        from pipelines.handlers.sklearn_handler import SklearnXAIHandler
+
+        self._setup(simple_context, tmp_path)
+        xai_dir = str(tmp_path / "xai_ts")
+        run_id = "20260427_171400"
+        result = SklearnXAIHandler(
+            {"output_directory": xai_dir, "methods": ["shap"], "n_lime": 0, "run_id": run_id},
+            simple_context,
+        ).execute()
+
+        assert len(result["xai_artifacts"]) > 0
+        assert all(path.endswith(f"_{run_id}.png") for path in result["xai_artifacts"])
         for path in result["xai_artifacts"]:
             assert os.path.exists(path)
 
