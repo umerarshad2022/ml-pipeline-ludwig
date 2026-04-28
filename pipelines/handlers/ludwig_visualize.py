@@ -30,8 +30,8 @@ class LudwigVisualizeHandler:
                 roc_curves,
                 calibration_1_vs_all
             )
-        except ImportError:
-            logger.warning("Ludwig visualize module not available, skipping visualizations")
+        except ImportError as e:
+            logger.warning(f"Ludwig visualize module not available, skipping visualizations: {e}")
             return {'skipped': True}
         
         # Get model output directory

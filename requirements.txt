@@ -20,6 +20,7 @@ lime==0.2.0.1
 # Visualization
 matplotlib==3.7.2
 seaborn==0.12.2
+ptitprince==0.3.1
 
 # YAML Processing
 pyyaml==6.0
