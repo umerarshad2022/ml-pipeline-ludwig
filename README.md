@@ -164,6 +164,98 @@ nautilus artifacts/xgboost_model/xai/
 
 See `requirements.txt` for full list.
 
+## 📂 Onboarding a New Dataset
+
+Follow these steps to plug a different CSV dataset into the YAML pipeline engine.
+
+### Step 1 — Place your file in `data/`
+
+```
+data/
+├── sample_data.csv       ← existing reference dataset
+└── your_dataset.csv      ← add your file here
+```
+
+Any accessible path works, but `data/` is the conventional location and keeps things tidy.
+
+### Step 2 — Verify your CSV schema
+
+Your CSV must contain columns that match the feature names you declare in the YAML config:
+
+| Requirement | Details |
+|-------------|---------|
+| **Feature columns** | One or more numeric/categorical columns used as model inputs (e.g. `throughput_dl`, `active_users`) |
+| **Label column** | A binary target column (e.g. `is_anomaly`). **Optional** — if absent, keep the `unsupervised_labeling` step in your pipeline and it will be auto-generated via Isolation Forest. |
+| **Identifier / timestamp columns** | These should be listed under `data.preprocessing.drop_columns` so they are excluded from training. |
+
+### Step 3 — Copy and edit a YAML config
+
+Copy one of the example configs (or create a new file in `examples/`) and make three targeted edits:
+
+**a) Point the data loader to your file**
+```yaml
+steps:
+  - name: load-data
+    type: data_loader
+    config:
+      source:
+        type: csv
+        path: data/your_dataset.csv   # ← change this
+```
+
+**b) Declare your feature columns**
+
+*For Ludwig pipelines (`du-cell-ludwig.yaml` style):*
+```yaml
+ludwig:
+  input_features:
+    - name: your_feature_col          # ← match exact CSV column name
+      type: numerical
+      preprocessing:
+        normalization: zscore
+  output_features:
+    - name: your_label_col            # ← label column (real or auto-generated)
+      type: binary
+```
+
+*For scikit-learn pipelines (`random-forest-anomaly.yaml` / `xgboost-anomaly.yaml` style):*
+```yaml
+sklearn_model:
+  input_features:
+    - your_feature_col                # ← match exact CSV column name
+  output_feature: your_label_col      # ← label column
+```
+
+**c) Drop non-feature columns**
+```yaml
+data:
+  preprocessing:
+    drop_columns:
+      - your_id_column
+      - your_timestamp_column
+```
+
+**d) (Optional) Auto-generate labels** — keep this step if your CSV has no label column:
+```yaml
+  - name: auto-label-anomalies
+    type: unsupervised_labeling
+    config:
+      method: isolation_forest
+      contamination: 0.10             # expected fraction of anomalies
+      feature: your_feature_col       # column to base labeling on
+      output_column: your_label_col   # name for the generated label column
+```
+
+### Step 4 — Run the pipeline
+
+```bash
+python run_pipeline.py examples/your-config.yaml
+```
+
+Artifacts (trained model, metrics, visualizations) are written to `artifacts/` by default.
+
+---
+
 ## 📝 Usage Examples
 
 ### Custom Pipeline Configuration
