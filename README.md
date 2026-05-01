@@ -275,6 +275,12 @@ export MPLBACKEND=Agg
 # Edit explain_*.py: change sample_size = min(1000, len(X))
 ```
 
+## 📖 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Model Selection Rationale](docs/MODEL_SELECTION_RATIONALE.md) | Why Ludwig, XGBoost, and Random Forest were chosen — and why other techniques were not |
+
 ## 📚 References
 
 - Ludwig: https://ludwig.ai/
