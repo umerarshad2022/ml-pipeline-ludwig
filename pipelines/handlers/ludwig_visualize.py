@@ -28,7 +28,6 @@ class LudwigVisualizeHandler:
                 learning_curves,
                 confusion_matrix,
                 roc_curves,
-                calibration_1_vs_all
             )
         except ImportError:
             logger.warning("Ludwig visualize module not available, skipping visualizations")
@@ -43,7 +42,16 @@ class LudwigVisualizeHandler:
         if not model_dir:
             logger.warning("No model directory available, skipping visualizations")
             return {'skipped': True}
-        
+
+        model_dir = Path(model_dir)
+        training_stats_path = self._find_file(model_dir, 'training_statistics.json')
+        if not training_stats_path:
+            logger.warning("training_statistics.json not found in model directory, skipping visualizations")
+            return {'skipped': True}
+
+        metadata_path = self._find_file(model_dir, 'training_set_metadata.json')
+        test_stats_path = self._find_file(model_dir, 'test_statistics.json')
+
         output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
         output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -55,24 +63,32 @@ class LudwigVisualizeHandler:
             try:
                 if viz_type == 'learning_curves':
                     logger.info("   Creating learning curves...")
+                    # learning_curves expects a list of paths to training_statistics.json files
                     learning_curves(
-                        [str(model_dir)],
+                        [str(training_stats_path)],
                         output_directory=str(output_dir)
                     )
                     created.append('learning_curves')
                 
                 elif viz_type == 'confusion_matrix':
+                    if not test_stats_path or not metadata_path:
+                        logger.warning("   test_statistics.json or training_set_metadata.json not found, skipping confusion matrix")
+                        continue
                     logger.info("   Creating confusion matrix...")
                     confusion_matrix(
-                        [str(model_dir)],
+                        [str(test_stats_path)],
+                        ground_truth_metadata=str(metadata_path),
                         output_directory=str(output_dir)
                     )
                     created.append('confusion_matrix')
                 
                 elif viz_type == 'roc_curve':
+                    if not test_stats_path:
+                        logger.warning("   test_statistics.json not found, skipping ROC curve")
+                        continue
                     logger.info("   Creating ROC curve...")
                     roc_curves(
-                        [str(model_dir)],
+                        [str(test_stats_path)],
                         output_directory=str(output_dir)
                     )
                     created.append('roc_curve')
@@ -91,3 +107,11 @@ class LudwigVisualizeHandler:
             'output_directory': str(output_dir),
             'visualizations_created': created
         }
+
+    def _find_file(self, root: Path, filename: str) -> Path | None:
+        """Find a file directly in root or in any nested subdirectory."""
+        direct = root / filename
+        if direct.exists():
+            return direct
+        matches = sorted(root.rglob(filename))
+        return matches[0] if matches else None
