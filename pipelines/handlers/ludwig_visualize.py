@@ -25,32 +25,29 @@ class LudwigVisualizeHandler:
         
         try:
             from ludwig.visualize import (
-                learning_curves_cli,
+                learning_curves,
                 confusion_matrix_cli,
                 roc_curves_from_test_statistics_cli,
             )
         except ImportError:
             logger.warning("Ludwig visualize module not available, skipping visualizations")
             return {'skipped': True}
-        
-        # Get model output directory
+
+        # Get the in-memory TrainingStats object returned by model.train() — use it
+        # directly for learning curves to avoid all filesystem path-resolution issues.
+        train_stats = None
         if 'train-ludwig' in self.context:
-            model_dir = self.context['train-ludwig']['output_directory']
+            train_stats = self.context['train-ludwig'].get('train_stats')
+
+        # Get model output directory (needed for confusion matrix / ROC curves)
+        if 'train-ludwig' in self.context:
+            model_dir = self.context['train-ludwig'].get('output_directory')
         else:
             model_dir = self.config.get('model_path')
-        
-        if not model_dir:
-            logger.warning("No model directory available, skipping visualizations")
-            return {'skipped': True}
 
-        model_dir = Path(model_dir)
-        training_stats_path = self._find_file(model_dir, 'training_statistics.json')
-        if not training_stats_path:
-            logger.warning("training_statistics.json not found in model directory, skipping visualizations")
-            return {'skipped': True}
-
-        metadata_path = self._find_file(model_dir, 'training_set_metadata.json')
-        test_stats_path = self._find_file(model_dir, 'test_statistics.json')
+        model_dir = Path(model_dir) if model_dir is not None else None
+        metadata_path = self._find_file(model_dir, 'training_set_metadata.json') if model_dir is not None else None
+        test_stats_path = self._find_file(model_dir, 'test_statistics.json') if model_dir is not None else None
 
         output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -63,9 +60,12 @@ class LudwigVisualizeHandler:
             try:
                 if viz_type == 'learning_curves':
                     logger.info("   Creating learning curves...")
-                    # learning_curves_cli expects a list of paths to training_statistics.json files
-                    learning_curves_cli(
-                        [str(training_stats_path)],
+                    if train_stats is None:
+                        logger.warning("   No train_stats in context, skipping learning curves")
+                        continue
+                    # learning_curves() expects a list of TrainingStats objects
+                    learning_curves(
+                        [train_stats],
                         output_directory=str(output_dir)
                     )
                     created.append('learning_curves')
