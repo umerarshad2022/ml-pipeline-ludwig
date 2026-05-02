@@ -25,9 +25,9 @@ class LudwigVisualizeHandler:
         
         try:
             from ludwig.visualize import (
-                learning_curves,
-                confusion_matrix,
-                roc_curves,
+                learning_curves_cli,
+                confusion_matrix_cli,
+                roc_curves_from_test_statistics_cli,
             )
         except ImportError:
             logger.warning("Ludwig visualize module not available, skipping visualizations")
@@ -63,8 +63,8 @@ class LudwigVisualizeHandler:
             try:
                 if viz_type == 'learning_curves':
                     logger.info("   Creating learning curves...")
-                    # learning_curves expects a list of paths to training_statistics.json files
-                    learning_curves(
+                    # learning_curves_cli expects a list of paths to training_statistics.json files
+                    learning_curves_cli(
                         [str(training_stats_path)],
                         output_directory=str(output_dir)
                     )
@@ -75,9 +75,9 @@ class LudwigVisualizeHandler:
                         logger.warning("   test_statistics.json or training_set_metadata.json not found, skipping confusion matrix")
                         continue
                     logger.info("   Creating confusion matrix...")
-                    confusion_matrix(
+                    confusion_matrix_cli(
                         [str(test_stats_path)],
-                        ground_truth_metadata=str(metadata_path),
+                        str(metadata_path),
                         output_directory=str(output_dir)
                     )
                     created.append('confusion_matrix')
@@ -87,7 +87,7 @@ class LudwigVisualizeHandler:
                         logger.warning("   test_statistics.json not found, skipping ROC curve")
                         continue
                     logger.info("   Creating ROC curve...")
-                    roc_curves(
+                    roc_curves_from_test_statistics_cli(
                         [str(test_stats_path)],
                         output_directory=str(output_dir)
                     )
