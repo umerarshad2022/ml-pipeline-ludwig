@@ -227,6 +227,7 @@ artifacts/
 │   ├── learning_curves_*.png          # Ludwig learning curves
 │   ├── confusion_matrix_*.png         # Ludwig confusion matrix
 │   ├── roc_curves_from_*.png          # Ludwig ROC curve
+│   ├── precision_recall_curve*.png    # Ludwig precision-recall curve
 │   └── compare_performance_*.png      # Ludwig precision / recall / F1 / ROC AUC bars
 │
 ├── random_forest_model/
@@ -235,7 +236,7 @@ artifacts/
 │   ├── confusion_matrix.png           # Confusion matrix
 │   ├── roc_curve.png                  # ROC curve
 │   ├── precision_recall_curve.png     # PR curve
-│   └── xai/                           # XAI visualizations (8 files)
+│   └── xai/                           # XAI visualizations + xai_summary.txt
 └── xgboost_model/
     ├── xgboost_model.pkl              # Trained model
     ├── metrics.txt                    # Performance metrics
@@ -243,7 +244,7 @@ artifacts/
     ├── roc_curve.png
     ├── precision_recall_curve.png
     ├── feature_importance.png
-    └── xai/                           # XAI visualizations (8 files)
+    └── xai/                           # XAI visualizations + xai_summary.txt
 ```
 
 ## 🔧 Configuration

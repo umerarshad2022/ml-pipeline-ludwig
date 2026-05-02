@@ -82,7 +82,9 @@ class LudwigTrainHandler:
             'model': model,
             'train_stats': train_stats,
             'output_directory': output_directory,
-            'preprocessed_data': preprocessed_data
+            'preprocessed_data': preprocessed_data,
+            'input_features': [feature['name'] for feature in config.get('input_features', [])],
+            'output_feature_name': config.get('output_features', [{}])[0].get('name'),
         }
         
         return result
@@ -143,6 +145,7 @@ class LudwigEvaluateHandler:
             dataset=df,
             output_directory=self.config.get('output_directory', 'artifacts/evaluation'),
             skip_save_unprocessed_output=False,
+            collect_predictions=True,
             collect_overall_stats=True
         )
         

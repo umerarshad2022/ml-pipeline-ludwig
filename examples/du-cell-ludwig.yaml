@@ -76,5 +76,7 @@ steps:
        - learning_curves
        - confusion_matrix
        - roc_curve
+       - precision_recall_curve
        - compare_performance
+       - feature_importance
      output_directory: artifacts/visualizations

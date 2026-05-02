@@ -639,6 +639,10 @@ class SklearnXAIHandler:
             )
             created.extend(lime_paths)
 
+        summary_path = self._write_xai_summary(output_directory, created)
+        if summary_path is not None:
+            created.append(summary_path)
+
         logger.info(f"✅ {len(created)} XAI artifact(s) saved to {output_directory}")
         result = {"xai_artifacts": created, "output_directory": output_directory}
         self.context["sklearn_xai"] = result
@@ -683,8 +687,9 @@ class SklearnXAIHandler:
             else:
                 sv = shap_values
 
-        X_plot = X_test if len(X_test) <= 200 else X_test.iloc[:200]
-        sv_plot = sv if len(sv) <= 200 else sv[:200]
+        n_plot = min(len(X_test), len(sv), 200)
+        X_plot = X_test.iloc[:n_plot]
+        sv_plot = sv[:n_plot]
 
         # Summary beeswarm
         fig, ax = plt.subplots(figsize=(8, max(4, len(feature_cols) * 0.6)))
@@ -705,6 +710,19 @@ class SklearnXAIHandler:
         logger.info(f"   💾 {path}")
 
         return created
+
+    @staticmethod
+    def _write_xai_summary(output_directory: str, created: List[str]) -> str | None:
+        if not created:
+            return None
+
+        summary_path = os.path.join(output_directory, "xai_summary.txt")
+        with open(summary_path, "w", encoding="utf-8") as handle:
+            handle.write("Generated XAI artifacts\n")
+            handle.write("=======================\n\n")
+            for artifact in created:
+                handle.write(f"- {os.path.basename(artifact)}\n")
+        return summary_path
 
     # -- LIME ----------------------------------------------------------------
 

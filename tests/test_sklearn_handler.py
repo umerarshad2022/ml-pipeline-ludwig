@@ -256,6 +256,7 @@ class TestSklearnXAIHandler:
         assert len(result["xai_artifacts"]) > 0
         for path in result["xai_artifacts"]:
             assert os.path.exists(path)
+        assert any(path.endswith("xai_summary.txt") for path in result["xai_artifacts"])
 
     def test_no_model_raises(self):
         from pipelines.handlers.sklearn_handler import SklearnXAIHandler
