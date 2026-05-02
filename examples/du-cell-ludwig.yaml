@@ -76,4 +76,5 @@ steps:
        - learning_curves
        - confusion_matrix
        - roc_curve
+       - compare_performance
      output_directory: artifacts/visualizations

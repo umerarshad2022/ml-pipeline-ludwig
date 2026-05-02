@@ -223,6 +223,12 @@ After training and XAI analysis:
 
 ```
 artifacts/
+├── visualizations/
+│   ├── learning_curves_*.png          # Ludwig learning curves
+│   ├── confusion_matrix_*.png         # Ludwig confusion matrix
+│   ├── roc_curves_from_*.png          # Ludwig ROC curve
+│   └── compare_performance_*.png      # Ludwig precision / recall / F1 / ROC AUC bars
+│
 ├── random_forest_model/
 │   ├── random_forest_model.pkl        # Trained model
 │   ├── metrics.txt                    # Performance metrics
