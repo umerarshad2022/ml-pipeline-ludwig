@@ -39,7 +39,7 @@ class LudwigVisualizeHandler:
         if 'train-ludwig' in self.context:
             train_stats = self.context['train-ludwig'].get('train_stats')
 
-        # Get model output directory (needed for confusion matrix / ROC curves)
+        # Get model output directory (needed for training_set_metadata.json)
         if 'train-ludwig' in self.context:
             model_dir = self.context['train-ludwig'].get('output_directory')
         else:
@@ -47,7 +47,18 @@ class LudwigVisualizeHandler:
 
         model_dir = Path(model_dir) if model_dir is not None else None
         metadata_path = self._find_file(model_dir, 'training_set_metadata.json') if model_dir is not None else None
-        test_stats_path = self._find_file(model_dir, 'test_statistics.json') if model_dir is not None else None
+
+        # test_statistics.json is written by the evaluate step, not the training step.
+        # Check the evaluate step's output directory first, then fall back to model_dir.
+        eval_dir = None
+        if 'evaluate' in self.context:
+            eval_out = self.context['evaluate'].get('output_directory')
+            eval_dir = Path(eval_out) if eval_out is not None else None
+        test_stats_path = (
+            self._find_file(eval_dir, 'test_statistics.json') if eval_dir is not None
+            else self._find_file(model_dir, 'test_statistics.json') if model_dir is not None
+            else None
+        )
 
         output_dir = Path(self.config.get('output_directory', 'artifacts/visualizations'))
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -63,10 +74,12 @@ class LudwigVisualizeHandler:
                     if train_stats is None:
                         logger.warning("   No train_stats in context, skipping learning curves")
                         continue
-                    # learning_curves() expects a list of TrainingStats objects
+                    # learning_curves() expects a list of TrainingStats objects;
+                    # file_format defaults to 'pdf' so we must request 'png'.
                     learning_curves(
                         [train_stats],
-                        output_directory=str(output_dir)
+                        output_directory=str(output_dir),
+                        file_format='png'
                     )
                     created.append('learning_curves')
                 
